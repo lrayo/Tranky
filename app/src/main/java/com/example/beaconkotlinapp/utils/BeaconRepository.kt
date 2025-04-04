@@ -1,38 +1,33 @@
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import java.sql.Connection
-import java.sql.PreparedStatement
+import android.util.Log
+import com.example.beaconkotlinapp.models.BeaconEvent
+import com.example.beaconkotlinapp.utils.RetrofitClient
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 object BeaconRepository {
 
     fun saveBeaconEvent(mac: String, lat: Double?, lon: Double?, phone: String, eventType: String) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val connection: Connection? = DatabaseManager.getConnection()
-            if (connection != null) {
-                val query = """
-                    INSERT INTO beacon_events (mac_address, latitude, longitude, phone_number, event_type) 
-                    VALUES (?, ?, ?, ?, ?)
-                """
+        val event = BeaconEvent(
+            mac_address = mac,
+            latitude = lat,
+            longitude = lon,
+            phone_number = phone,
+            event_type = eventType
+        )
 
-                try {
-                    val statement: PreparedStatement = connection.prepareStatement(query)
-                    statement.setString(1, mac)
-                    statement.setObject(2, lat) // Puede ser null
-                    statement.setObject(3, lon) // Puede ser null
-                    statement.setString(4, phone)
-                    statement.setString(5, eventType)
-
-                    statement.executeUpdate()
-                    println("✅ Evento del beacon guardado correctamente en PostgreSQL")
-
-                    statement.close()
-                    connection.close()
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    println("❌ Error al guardar el evento del beacon en la base de datos")
+        RetrofitClient.instance.sendBeaconEvent(event).enqueue(object : Callback<Void> {
+            override fun onResponse(call: Call<Void>, response: Response<Void>) {
+                if (response.isSuccessful) {
+                    Log.d("API", "✅ Evento enviado correctamente")
+                } else {
+                    Log.e("API", "❌ Error al enviar evento: Código ${response.code()}")
                 }
             }
-        }
+
+            override fun onFailure(call: Call<Void>, t: Throwable) {
+                Log.e("API", "❌ Error de red al enviar evento: ${t.message}")
+            }
+        })
     }
 }
